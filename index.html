@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- ИСПРАВЛЕНО ПО СОВЕТУ ДЕНИСА: Убран ошибочный параметр user-select, ломавший загрузку head! -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>CYBER_NET // VK_EDITION_2026</title>
+    <!-- Официальная мобильная библиотека ВК -->
+    <script src="https://unpkg.com"></script>
+    <script>
+        // Инициализация выстреливает мгновенно при чтении head
+        try {
+            if (typeof window.vkBridge !== 'undefined' && window.vkBridge !== null) {
+                window.vkBridge.send('VKWebAppInit');
+            } else if (typeof vkBridge !== 'undefined') {
+                vkBridge.send('VKWebAppInit');
+            }
+        } catch(e) {
+            console.log("ВК Старт в автономном режиме");
+        }
+    </script>
+    <style>
+        @import url('https://googleapis.com');
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; font-family: 'Share Tech Mono', monospace; }
+        
+        body.theme-none { --neon: #00ffcc; --neon-dim: rgba(0,255,204,0.15); }
+        body.theme-anon { --neon: #32cd32; --neon-dim: rgba(50,205,50,0.15); }
+        body.theme-synd { --neon: #ba55d3; --neon-dim: rgba(186,85,211,0.15); }
+        body.theme-red { --neon: #ff0055; --neon-dim: rgba(255,0,85,0.15); }
+        body {
+            background-color: #020204; color: var(--neon);
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 8px; overflow-x: hidden; position: relative;
+        }
+        
+        body.overclock-active { animation: goldPulse 1.5s infinite alternate !important; }
+        @keyframes goldPulse { 0% { background-color: #020204; box-shadow: inset 0 0 30px rgba(255,200,0,0.1); } 100% { background-color: #1a1500; box-shadow: inset 0 0 60px rgba(255,200,0,0.2); } }
+        body.police-alert { animation: redFlash 0.4s infinite alternate !important; }
+        @keyframes redFlash { 0% { background-color: #020204; } 100% { background-color: #2b0008; } }
+
+        #matrix-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.12; pointer-events: none; }
+        
+        #main-container { 
+            width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 8px; 
+            margin: 0 auto; padding: 2px; min-height: calc(100vh - 16px); justify-content: flex-start; z-index: 5; 
+        }
+
+        #score-container { border: 1px solid var(--neon); padding: 8px; background: rgba(0, 0, 0, 0.6); text-align: center; backdrop-filter: blur(4px); box-shadow: 0 0 12px var(--neon-dim); }
+        #rank-display { font-size: 11px; color: #ff0055; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 5px #ff0055; }
+        #score { font-size: 34px; font-weight: bold; text-shadow: 0 0 10px var(--neon); letter-spacing: 1px; margin: 2px 0; }
+        #cps { font-size: 11px; color: #8899aa; }
+        #streak-container { font-size: 11px; color: #ffcc00; font-weight: bold; text-align: center; text-shadow: 0 0 4px #ffcc00; margin-top: 2px; }
+        #buff-timer { font-size: 11px; color: #ffcc00; text-align: center; min-height: 14px; text-transform: uppercase; font-weight: bold; }
+
+        #police-panel { display: none; background: #ff0055; color: #fff; padding: 8px; text-align: center; font-weight: bold; border: 1px solid #fff; z-index: 50; box-shadow: 0 0 15px #ff0055; width: 100%; }
+        .police-btn-group { display: flex; gap: 6px; justify-content: center; margin-top: 4px; }
+
+        #click-area { display: flex; justify-content: center; position: relative; margin: 8px 0; width: 100%; min-height: 100px; align-items: center; }
+        #core-target { 
+            width: 105px; height: 105px; background: radial-gradient(circle, var(--neon-dim) 0%, transparent 70%);
+            border: 2px solid var(--neon); border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; 
+            box-shadow: 0 0 20px var(--neon-dim); transition: transform 0.1s;
+        }
+        #core-target:active { transform: scale(0.94); box-shadow: 0 0 30px #ff0055; border-color: #ff0055; }
+        #core-target::after { content: 'CORE'; font-size: 13px; color: var(--neon); letter-spacing: 2px; text-shadow: 0 0 8px var(--neon); font-weight: bold; }
+
+        .floating-code { position: absolute; font-size: 15px; font-weight: bold; pointer-events: none; animation: matrixRise 0.5s cubic-bezier(0.08, 0.8, 0.3, 1) forwards; color: var(--neon); text-shadow: 0 0 4px var(--neon); z-index: 10; }
+        @keyframes matrixRise { 0% { opacity: 1; transform: translateY(0) scale(1.1); } 100% { opacity: 0; transform: translateY(-65px) scale(0.7); } }
+        .tab-window { border: 1px solid #ff0055; padding: 8px; background: rgba(3, 3, 6, 0.96); display: none; flex-direction: column; gap: 5px; height: 185px; min-height: 185px; backdrop-filter: blur(8px); box-shadow: 0 0 12px rgba(255, 0, 85, 0.15); opacity: 0; transform: translateY(5px); transition: opacity 0.2s; width: 100%; }
+        .tab-window.active { display: flex; opacity: 1; transform: translateY(0); }
+        .window-title { font-size: 11px; color: #ff0055; border-bottom: 1px solid rgba(255, 0, 85, 0.3); padding-bottom: 2px; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 1px; }
+
+        .row-item { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin: 2px 0; }
+        .action-btn { background: transparent; border: 1px solid var(--neon); color: var(--neon); padding: 3px 6px; cursor: pointer; font-size: 10px; text-transform: uppercase; transition: all 0.2s; font-weight: bold; }
+        .action-btn:hover:not(:disabled) { background: var(--neon-dim); box-shadow: 0 0 8px var(--neon); }
+        .action-btn:disabled { opacity: 0.2; cursor: not-allowed; border-color: #444; color: #444; }
+
+        .progress-bar { width: 100%; background: #111; height: 8px; border: 1px solid var(--neon); overflow: hidden; margin-top: 4px; }
+        .progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--neon), #ff0055); }
+
+        #console-panel { width: 100%; background: #000; border: 1px solid rgba(0,255,204,0.15); font-size: 11px; color: #00ffcc; padding: 4px 8px; height: 24px; overflow: hidden; white-space: nowrap; }
+        .scroll-grid { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; height: 100%; padding-right: 2px; }
+        .scroll-grid::-webkit-scrollbar { width: 3px; }
+        .scroll-grid::-webkit-scrollbar-thumb { background: var(--neon); }
+        .upgrade-btn { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--neon-dim); padding: 6px 8px; cursor: pointer; background: rgba(0, 255, 204, 0.01); transition: all 0.15s; }
+        .upgrade-btn:hover:not(.disabled) { background: var(--neon-dim); border-color: var(--neon); }
+        .upgrade-btn.disabled { opacity: 0.12; cursor: not-allowed; border-color: #333; }
+        .upgrade-name { font-size: 11px; color: #fff; }
+        .upgrade-cost { font-size: 11px; color: var(--neon); font-weight: bold; }
+
+        .faction-select-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 4px; }
+        .fac-btn { background: #000; border: 1px solid #444; padding: 10px 4px; font-size: 10px; font-weight: bold; cursor: pointer; text-align: center; text-transform: uppercase; transition: all 0.2s; }
+
+        #nav-bar { display: flex; width: 100%; gap: 4px; margin-top: auto; }
+        .nav-btn { flex: 1; background: rgba(0, 0, 0, 0.6); border: 1px solid var(--neon-dim); color: var(--neon); padding: 11px 0; font-size: 11px; cursor: pointer; text-transform: uppercase; text-align: center; }
+        .nav-btn.active { background: rgba(255, 0, 115, 0.15); border-color: #ff0055; color: #fff; box-shadow: 0 0 8px rgba(255,0,85,0.2); }
+
+        #ad-button { width: 100%; background: rgba(255,200,0,0.03); border: 1px dashed #ffcc00; color: #ffcc00; padding: 10px; font-size: 11px; cursor: pointer; text-transform: uppercase; font-weight: bold; margin-top: 2px; }
+    </style>
+</head>
+<body class="theme-none">
+    <canvas id="matrix-canvas"></canvas>
+
+    <div id="main-container">
+        <div id="score-container">
+            <div id="rank-display">РАНГ: Скрипт-кидди (x1)</div>
+            <div id="score">00000000</div>
+            <div id="cps">СЕТЕВОЙ_ДОХОД: 0 / СЕК</div>
+            <div id="streak-container">COMBO_MULTIPLIER: x1.0 (СТАБИЛЬНО)</div>
+        </div>
+
+        <div id="buff-timer">СИСТЕМА СТАБИЛЬНА</div>
+        
+        <div id="police-panel">
+            <span id="p-alert-text">🚨 СЛЕДКА DETECTED! ВЫБЕРИТЕ ДЕЙСТВИЕ:</span>
+            <div class="police-btn-group">
+                <button class="action-btn" onclick="evadePolice()">[ FLUSH IP ]</button>
+                <button class="action-btn" onclick="triggerAmnestyAd()" style="border-color:#ffcc00; color:#ffcc00;">[ АМНИСТИЯ (AD) ]</button>
+            </div>
+        </div>
+        
+        <div id="click-area"><div id="core-target"></div></div>
+
+        <!-- ВКЛАДКА 1: Софт -->
+        <div class="tab-window active" id="win-soft">
+            <div class="window-title">// Доступный софт</div>
+            <div class="scroll-grid">
+                <div class="upgrade-btn" id="upg-click" onclick="buyUpgrade('click')"><span class="upgrade-name">> TAP_LINK.EXE (+1)</span><span class="upgrade-cost" id="cost-click">20</span></div>
+                <div class="upgrade-btn" id="upg-bot" onclick="buyUpgrade('bot')"><span class="upgrade-name">> BOT_NET.SH (+2/s)</span><span class="upgrade-cost" id="cost-bot">100</span></div>
+                <div class="upgrade-btn" id="upg-server" onclick="buyUpgrade('server')"><span class="upgrade-name">> MAINFRAME.NET (+20/s)</span><span class="upgrade-cost" id="cost-server">1000</span></div>
+            </div>
+        </div>
+        <!-- ВКЛАДКА 2: Биржа -->
+        <div class="tab-window" id="win-crypto">
+            <div class="window-title">// Рынок акций & Токенов</div>
+            <div class="scroll-grid">
+                <div class="row-item"><span id="cry-price">NEON_COIN: 100 B</span><span id="cry-wallet">OWN: 0</span><div style="display:flex;gap:4px;"><button class="action-btn" onclick="cryptoTrade('buy')">B</button><button class="action-btn" onclick="cryptoTrade('sell')">S</button></div></div>
+                <div class="row-item"><span id="st-yndx">STK_YNDX: 150 B</span><span id="st-yndx-w">OWN: 0</span><div style="display:flex;gap:4px;"><button class="action-btn" onclick="stockTrade('yndx','buy')">B</button><button class="action-btn" onclick="stockTrade('yndx','sell')">S</button></div></div>
+                <div class="row-item"><span id="st-corp">STK_CORP_X: 300 B</span><span id="st-corp-w">OWN: 0</span><div style="display:flex;gap:4px;"><button class="action-btn" onclick="stockTrade('corp','buy')">B</button><button class="action-btn" onclick="stockTrade('corp','sell')">S</button></div></div>
+                <div class="row-item"><span id="st-appl">STK_APPLE: 600 B</span><span id="st-appl-w">OWN: 0</span><div style="display:flex;gap:4px;"><button class="action-btn" onclick="stockTrade('appl','buy')">B</button><button class="action-btn" onclick="stockTrade('appl','sell')">S</button></div></div>
+            </div>
+        </div>
+
+        <!-- ВКЛАДКА 3: Контракты -->
+        <div class="tab-window" id="win-hack">
+            <div class="window-title">// Глобальный захват серверов</div>
+            <div class="row-item" style="margin-top: 2px;"><span id="net-target">TARGET: BANK</span><button class="action-btn" id="net-btn" onclick="startHack()">ATTACK</button></div>
+            <div class="progress-bar"><div class="progress-fill" id="net-progress"></div></div>
+            <div class="row-item" style="margin-top: 4px; font-weight: bold;"><span id="fac-control-txt">GLOBAL_NET_CONTROL: 33% [NONE]</span></div>
+            <div class="upgrade-btn" id="event-box" onclick="triggerEventHack()" style="margin-top: 4px; border-color: #ffcc00; display: none; padding: 4px 8px;"><span class="upgrade-name" id="ev-name">> ДОСТУПЕН ИВЕНТ КЛИКНИ ЕГО!</span></div>
+        </div>
+
+        <!-- ВКЛАДКА 4: Банды -->
+        <div class="tab-window" id="win-skills">
+            <div class="window-title">// Хакерские банды Даркнета</div>
+            <div id="faction-selector-zone">
+                <div style="font-size: 10px; color: #8899aa; text-align: center; margin-bottom: 2px;">Выберите банду (Требуется 1000 B / ранг Взломщик Wi-Fi):</div>
+                <div class="faction-select-grid">
+                    <button class="fac-btn" id="f-anon" onclick="joinFaction('anon')" style="color: #32cd32;">ANON</button>
+                    <button class="fac-btn" id="f-synd" onclick="joinFaction('synd')" style="color: #ba55d3;">SYND</button>
+                    <button class="fac-btn" id="f-red" onclick="joinFaction('red')" style="color: #ff0055;">RED</button>
+                </div>
+            </div>
+            <div class="scroll-grid" id="skills-scroll-zone" style="margin-top: 4px;">
+                <div class="upgrade-btn" id="sk-stealth" onclick="buySkill('stealth')"><span class="upgrade-name">> PROXY_IP (Полиция ждет +4с)</span><span class="upgrade-cost">300</span></div>
+                <div class="upgrade-btn" id="sk-ads" onclick="buySkill('ads')"><span class="upgrade-name">> ADS_EXPLOIT (Реклама +50%)</span><span class="upgrade-cost">600</span></div>
+                <div class="upgrade-btn" id="sk-hardware" onclick="buySkill('hardware')"><span class="upgrade-name">> КУЛЕР СЕРВЕРА (+25% к CPS)</span><span class="upgrade-cost">1200</span></div>
+            </div>
+        </div>
+
+        <div id="console-panel">> [SYS] ХАКЕРСКИЕ ПРОТОКОЛЫ УСПЕШНО ЗАГРУЖЕНЫ... READY</div>
+        <button id="ad-button" onclick="showRewardAd()">[ ВРУБИТЬ РАЗГОН OVERCLOCK (X2 ДОХОД) ]</button>
+
+        <div id="nav-bar">
+            <button class="nav-btn active" id="b-soft" onclick="switchTab('soft')">Soft</button>
+            <button class="nav-btn" id="b-crypto" onclick="switchTab('crypto')">Market</button>
+            <button class="nav-btn" id="b-hack" onclick="switchTab('hack')">Global</button>
+            <button class="nav-btn" id="b-skills" onclick="switchTab('skills')">Faction</button>
+        </div>
+    </div>
+    <script>
+        let currentLang = 'ru'; 
+        let policeTrace = false; 
+        let policeTimer = null; 
+        let overclockTimer = 0; 
+        let lastAdTime = Date.now(); 
+        let isFullscreenAdPlaying = false;
+        let tapStreak = 0; 
+        let lastTapTime = Date.now(); 
+        let currentComboMult = 1.0; 
+        let currentActiveEvent = null;
+
+        let gameState = {
+            coins: 0, clickPower: 1, clickLevel: 1, cps: 0, rankId: 0, crypto: 0, cryptoPrice: 100, hackActive: false, hackProgress: 0, hackTargetId: 0,
+            faction: "none", globalControl: 33,
+            stocks: { yndx: 0, corp: 0, appl: 0 },
+            stockPrices: { yndx: 150, corp: 300, appl: 600 },
+            skills: { stealth: false, ads: false, hardware: false },
+            upgrades: { 
+                click: { cost: 20, baseCost: 20, rate: 1.2 }, 
+                bot: { cost: 100, baseCost: 100, rate: 1.15, count: 0, income: 2 }, 
+                server: { cost: 1000, baseCost: 1000, rate: 1.16, count: 0, income: 20 } 
+            }
+        };
+
+        const rankThresholds = [
+            { name: {ru:"Скрипт-кидди"}, limit: 0, mult: 1, color: "#00ffcc" },
+            { name: {ru:"Взломщик Wi-Fi"}, limit: 1000, mult: 2, color: "#a29bfe" },
+            { name: {ru:"Нетраннер"}, limit: 12000, mult: 5, color: "#ff0055" },
+            { name: {ru:"Цифровой Бог"}, limit: 150000, mult: 12, color: "gold" }
+        ];
+
+        const hackTargets = [
+            { name: {ru:"Сервер США"}, req: 1000, reward: 3500, time: 6 },
+            { name: {ru:"Шлюз Китая"}, req: 12000, reward: 38000, time: 12 },
+            { name: {ru:"Ядро Квантового ИИ"}, req: 100000, reward: 320000, time: 18 }
+        ];
+        function writeLog(text) { document.getElementById('console-panel').innerText = "> " + text; }
+
+        const canvas = document.getElementById('matrix-canvas'); const ctx = canvas.getContext('2d'); let columns = [];
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; columns = Array(Math.floor(canvas.width / 16)).fill(0); }
+        window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+        function drawMatrix() { 
+            ctx.fillStyle = 'rgba(2, 2, 4, 0.06)'; ctx.fillRect(0, 0, canvas.width, canvas.height); 
+            ctx.fillStyle = overclockTimer > 0 ? '#ffcc00' : (gameState.faction==='anon'?'#32cd32':(gameState.faction==='synd'?'#ba55d3':(gameState.faction==='red'?'#ff0055':'#00ffcc'))); 
+            ctx.font = '14px monospace'; 
+            columns.forEach((y, i) => { ctx.fillText(Math.random() > 0.5 ? "1" : "0", i * 16, y); if (y > canvas.height && Math.random() > 0.975) columns[i] = 0; else columns[i] = y + 16; }); 
+        }
+        setInterval(drawMatrix, 40);
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-window').forEach(w => w.classList.remove('active')); document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById("win-" + tabId).classList.add('active'); document.getElementById("b-" + tabId).classList.add('active');
+            writeLog("СЕКТОР: " + tabId.toUpperCase());
+        }
+
+        function checkRank() { 
+            let id = 0; for(let i = rankThresholds.length - 1; i >= 0; i--) { if(gameState.coins >= rankThresholds[i].limit) { id = i; break; } } 
+            if(id !== gameState.rankId) { gameState.rankId = id; writeLog("СТАТУС: " + rankThresholds[id].name['ru'].toUpperCase()); } 
+        }
+
+        function joinFaction(fac) {
+            if(gameState.rankId < 1) { alert("ТРЕБУЕТСЯ РАНГ ВЗЛОМЩИК WI-FI (1000 B)"); return; }
+            if(gameState.faction !== "none") return;
+            gameState.faction = fac; document.body.className = "theme-" + fac;
+            recalculateCPS(); checkRank(); updateUI(); writeLog("ИНЖЕКТ В БАНДУ: [" + fac.toUpperCase() + "]");
+        }
+        const core = document.getElementById('core-target');
+        function doTap(x, y) {
+            if(gameState.hackActive || isFullscreenAdPlaying) return;
+            let now = Date.now();
+            if (now - lastTapTime < 600) { tapStreak++; if (tapStreak > 40) currentComboMult = 5.0; else if (tapStreak > 25) currentComboMult = 3.0; else if (tapStreak > 10) currentComboMult = 2.0; } 
+            else { tapStreak = 0; currentComboMult = 1.0; }
+            lastTapTime = now;
+
+            let rankMult = rankThresholds[gameState.rankId].mult; let adBoost = overclockTimer > 0 ? 2 : 1;
+            let factionClickBonus = gameState.faction === "anon" ? 1.15 : 1.0;
+            let finalGain = gameState.clickPower * rankMult * adBoost * currentComboMult * factionClickBonus; 
+            
+            gameState.coins += finalGain;
+            const symbols = ["1", "0", "x" + currentComboMult.toFixed(1), "+" + Math.floor(finalGain) + "B"];
+            createParticle(x, y, symbols[Math.floor(Math.random() * symbols.length)]);
+            checkRank(); updateUI();
+        }
+        core.addEventListener('mousedown', (e) => doTap(e.clientX, e.clientY));
+        core.addEventListener('touchstart', (e) => { e.preventDefault(); doTap(e.touches.clientX, e.touches.clientY); });
+
+        function createParticle(x, y, txt) {
+            const area = document.getElementById('click-area'); const rect = area.getBoundingClientRect(); const el = document.createElement('div'); 
+            el.className = 'floating-code'; el.innerText = txt; el.style.left = (x - rect.left) + "px"; el.style.top = (y - rect.top) + "px"; 
+            area.appendChild(el); setTimeout(() => el.remove(), 500);
+        }
+
+        function buyUpgrade(type) { 
+            const upg = gameState.upgrades[type]; 
+            if(gameState.coins >= upg.cost) { 
+                gameState.coins -= upg.cost; 
+                if(type === 'click') { gameState.clickPower++; gameState.clickLevel++; } else { upg.count = (upg.count || 0) + 1; } 
+                upg.cost = Math.floor(upg.baseCost * Math.pow(upg.rate, type==='click'?gameState.clickLevel:upg.count)); 
+                recalculateCPS(); checkRank(); updateUI(); writeLog("ОБНОВЛЕН СОФТ: " + type.toUpperCase()); 
+            } 
+        }
+
+        function recalculateCPS() { 
+            let total = 0; for(let k in gameState.upgrades) { if(k!=='click') total += (gameState.upgrades[k].count||0)*gameState.upgrades[k].income; } 
+            if(gameState.skills.hardware) total = Math.floor(total * 1.25); if(gameState.faction === "synd") total = Math.floor(total * 1.15); gameState.cps = total; 
+        }
+        
+        function cryptoTrade(action) { 
+            if(action === 'buy' && gameState.coins >= gameState.cryptoPrice) { gameState.coins -= gameState.cryptoPrice; gameState.crypto++; writeLog("КУПЛЕН ТОКЕН COIN."); } 
+            else if(action === 'sell' && gameState.crypto > 0) { gameState.crypto--; gameState.coins += gameState.cryptoPrice; writeLog("ПРОДАН ТОКЕН COIN."); } 
+            checkRank(); updateUI(); 
+        }
+        
+        function stockTrade(ticker, action) {
+            let price = gameState.stockPrices[ticker];
+            if (action === 'buy' && gameState.coins >= price) { gameState.coins -= price; gameState.stocks[ticker]++; writeLog("КУПЛЕНА АКЦИЯ " + ticker.toUpperCase()); } 
+            else if (action === 'sell' && gameState.stocks[ticker] > 0) { gameState.stocks[ticker]--; gameState.coins += price; writeLog("ПРОДАНА АКЦИЯ " + ticker.toUpperCase()); } 
+            checkRank(); updateUI();
+        }
+
+        function startHack() { 
+            if(gameState.hackActive) return; let target = hackTargets[gameState.hackTargetId]; 
+            if(gameState.coins >= target.req) { gameState.coins -= target.req; gameState.hackActive = true; gameState.hackProgress = 0; document.getElementById('net-btn').disabled = true; writeLog("ВЗЛОМ ПОРТОВ: " + target.name['ru'].toUpperCase()); } 
+            else { alert("НЕДОСТАТОЧНО БАЙТОВ ДЛЯ АТАКИ"); } 
+        }
+
+        setInterval(() => {
+            gameState.cryptoPrice = Math.max(15, Math.min(500, Math.floor(gameState.cryptoPrice + (Math.random() - 0.48) * 36))); 
+            let roll = Math.random();
+            if (roll < 0.25) { gameState.stockPrices.yndx = Math.floor(gameState.stockPrices.yndx * 1.35); writeLog("[NEWS] АКЦИИ YNDX ИДУТ В ПАМП!"); }
+            else if (roll < 0.5) { gameState.stockPrices.appl = Math.floor(gameState.stockPrices.appl * 0.65); writeLog("[NEWS] АКЦИИ APPLE ИДУТ В ДАМП!"); }
+            else {
+                gameState.stockPrices.yndx = Math.max(20, Math.floor(gameState.stockPrices.yndx + (Math.random() - 0.5) * 20));
+                gameState.stockPrices.corp = Math.max(40, Math.floor(gameState.stockPrices.corp + (Math.random() - 0.48) * 35));
+                gameState.stockPrices.appl = Math.max(80, Math.floor(gameState.stockPrices.appl + (Math.random() - 0.5) * 45));
+            }
+            updateUI();
+        }, 4000);
+        setInterval(() => {
+            if (!gameState.hackActive && !policeTrace && Math.random() > 0.5) {
+                currentActiveEvent = { name: "ВЗЛОМ ЦЕНТРОБАНКА", reward: 30000, risk: 0.5 }; document.getElementById('event-box').style.display = 'flex';
+                document.getElementById('ev-name').innerText = "> СЛУЖБА: " + currentActiveEvent.name; writeLog("🚨 ДОСТУПЕН КОНТРАКТ ДАРКНЕТА!");
+            }
+        }, 90000);
+
+        function triggerEventHack() {
+            if (!currentActiveEvent) return;
+            document.getElementById('event-box').style.display = 'none';
+            if (Math.random() > currentActiveEvent.risk) { gameState.coins += currentActiveEvent.reward; writeLog("[SUCCESS] ГОНОРАР +" + currentActiveEvent.reward + "B"); } 
+            else { writeLog("[FAIL] ВСПЫШКА СИРЕНЫ!"); triggerPoliceAttack(); }
+            currentActiveEvent = null; checkRank(); updateUI();
+        }
+
+        function triggerPoliceAttack() {
+            if (isFullscreenAdPlaying) return;
+            policeTrace = true; document.getElementById('police-panel').style.display = 'block'; document.body.classList.add('police-alert');
+            let reaction = gameState.skills.stealth ? 12000 : (gameState.faction === "red" ? 10000 : 6000);
+            policeTimer = setTimeout(() => { gameState.coins = Math.floor(gameState.coins * 0.8); policeTrace = false; document.getElementById('police-panel').style.display = 'none'; document.body.classList.remove('police-alert'); alert("⚠️ ШТРАФ ПОЛИЦИИ! Потеря 20% байтов."); checkRank(); updateUI(); }, reaction);
+        }
+
+        setInterval(() => { let policeChance = gameState.faction === "red" ? 0.95 : 0.90; if(!policeTrace && !gameState.hackActive && Math.random() > policeChance) { triggerPoliceAttack(); } }, 5000);
+        function evadePolice() { if(!policeTrace) return; clearTimeout(policeTimer); policeTrace = false; document.getElementById('police-panel').style.display = 'none'; document.body.classList.remove('police-alert'); updateUI(); writeLog("[OK] IP СБРОШЕН."); }
+        function buySkill(type) { let cost = type === 'stealth' ? 300 : (type==='ads'? 600 : 1200); if(!gameState.skills[type] && gameState.coins >= cost) { gameState.coins -= cost; gameState.skills[type] = true; recalculateCPS(); checkRank(); updateUI(); writeLog("МОДУЛЬ АКТИВИРОВАН."); } }
+
+        function triggerAmnestyAd() { if(!policeTrace) return; try { if (typeof vkBridge !== 'undefined' && vkBridge.send) { vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' }).then(d => { if(d.result) { clearTimeout(policeTimer); policeTrace = false; document.getElementById('police-panel').style.display = 'none'; document.body.classList.remove('police-alert'); updateUI(); } }).catch(e => { console.log(e); }); return; } } catch(e) {} clearTimeout(policeTimer); policeTrace = false; document.getElementById('police-panel').style.display = 'none'; document.body.classList.remove('police-alert'); updateUI(); }
+        function showRewardAd() { try { if (typeof vkBridge !== 'undefined' && vkBridge.send) { vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'reward' }).then(d => { if(d.result) { overclockTimer = 60.0; document.body.classList.add('overclock-active'); updateUI(); } }).catch(e => { console.log(e); }); return; } } catch(e) {} overclockTimer = 60.0; document.body.classList.add('overclock-active'); updateUI(); }
+
+        setInterval(() => {
+            if(gameState.coins < 0) gameState.coins = 0;
+            if (isFullscreenAdPlaying) return;
+            if (Date.now() - lastTapTime > 2000 && currentComboMult > 1.0) { tapStreak = 0; currentComboMult = 1.0; updateUI(); }
+            if(overclockTimer > 0) { overclockTimer -= 0.1; if(overclockTimer <= 0) { overclockTimer = 0; document.body.classList.remove('overclock-active'); } updateUI(); }
+            let adBoost = overclockTimer > 0 ? 2 : 1;
+            if(gameState.cps > 0 && !gameState.hackActive) { gameState.coins += (gameState.cps * adBoost) / 10; checkRank(); updateUI(); }
+            if(gameState.hackActive) {
+                let target = hackTargets[gameState.hackTargetId]; gameState.hackProgress += (100 / (target.time * 10)); document.getElementById('net-progress').style.width = gameState.hackProgress + "%";
+                if(gameState.hackProgress >= 100) { gameState.hackActive = false; gameState.coins += target.reward; document.getElementById('net-progress').style.width = '0%'; document.getElementById('net-btn').disabled = false; gameState.globalControl = Math.min(99, gameState.globalControl + Math.floor(Math.random()*3)+1); writeLog("[SUCCESS] СЕТЬ ВЗЛОМАНА! +" + target.reward + "B"); gameState.hackTargetId = (gameState.hackTargetId + 1) % hackTargets.length; checkRank(); updateUI(); }
+            }
+        }, 100);
+
+        setInterval(() => { try { if (typeof vkBridge !== 'undefined' && vkBridge.send) { isFullscreenAdPlaying = true; vkBridge.send('VKWebAppShowNativeAds', { ad_format: 'interstitial' }).then(() => { isFullscreenAdPlaying = false; }).catch(() => { isFullscreenAdPlaying = false; }); } } catch(e){} }, 300000);
+
+        function updateUI() {
+            if (!document.getElementById('net-target')) return;
+            let nt = hackTargets[gameState.hackTargetId]; 
+            document.getElementById('net-target').innerText = "TARGET: " + nt.name['ru'] + " (" + nt.req + " B)"; 
+            document.getElementById('fac-control-txt').innerText = "GLOBAL_NET_CONTROL: " + gameState.globalControl + "% [" + gameState.faction.toUpperCase() + "]";
+            document.getElementById('cry-price').innerText = "NEON_COIN: " + gameState.cryptoPrice + " B"; document.getElementById('cry-wallet').innerText = "OWN: " + gameState.crypto;
+            document.getElementById('st-yndx').innerText = "STK_YNDX: " + gameState.stockPrices.yndx + " B"; document.getElementById('st-yndx-w').innerText = "OWN: " + gameState.stocks.yndx;
+            document.getElementById('st-corp').innerText = "STK_CORP_X: " + gameState.stockPrices.corp + " B"; document.getElementById('st-corp-w').innerText = "OWN: " + gameState.stocks.corp;
+            document.getElementById('st-appl').innerText = "STK_APPLE: " + gameState.stockPrices.appl + " B"; document.getElementById('st-appl-w').innerText = "OWN: " + gameState.stocks.appl;
+            let r = rankThresholds[gameState.rankId]; document.getElementById('rank-display').innerText = "РАНГ: " + r.name['ru'] + " (x" + r.mult + ")"; document.getElementById('rank-display').style.color = r.color;
+            let adBoost = overclockTimer > 0 ? 2 : 1;
+            document.getElementById('score').innerText = Math.floor(gameState.coins).toString().padStart(8, '0'); document.getElementById('cps').innerText = "ДОХОД: " + (gameState.cps * adBoost) + " / СЕК";
+            document.getElementById('streak-container').innerText = "COMBO: x" + currentComboMult.toFixed(1) + " (" + (tapStreak > 0 ? 'ГОРЯЧИЙ РАЗГОН' : 'СТАБИЛЬНО') + ")";
+            if(overclockTimer > 0) { document.getElementById('buff-timer').innerText = "🔥 OVERCLOCK АКТИВЕН: " + Math.ceil(overclockTimer) + "s"; } else { document.getElementById('buff-timer').innerText = "СИСТЕМА СТАБИЛЬНА"; }
+            document.getElementById('cost-click').innerText = gameState.upgrades.click.cost; document.getElementById('cost-bot').innerText = gameState.upgrades.bot.cost; document.getElementById('cost-server').innerText = gameState.upgrades.server.cost;
+            if (gameState.faction !== "none") { document.getElementById('faction-selector-zone').style.display = 'none'; document.getElementById('skills-scroll-zone').style.height = '100%'; document.body.className = "theme-" + gameState.faction; } 
+            else { document.getElementById('skills-scroll-zone').style.height = '65px'; document.getElementById('faction-selector-zone').style.display = 'block'; }
+            if(gameState.skills.stealth) document.getElementById('sk-stealth').classList.add('disabled'); if(gameState.skills.ads) document.getElementById('sk-ads').classList.add('disabled'); if(gameState.skills.hardware) document.getElementById('sk-hardware').classList.add('disabled');
+        }
+
+        if (localStorage.getItem('cyberCleanSave')) { try { const s = JSON.parse(localStorage.getItem('cyberCleanSave')); if (s && typeof s.coins === 'number') { gameState = s; } } catch(e) {} }
+        setInterval(() => localStorage.setItem('cyberCleanSave', JSON.stringify(gameState)), 5000); 
+        recalculateCPS(); checkRank(); updateUI();
+    </script>
+</body>
+</html>
